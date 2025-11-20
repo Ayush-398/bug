@@ -2,7 +2,10 @@
 import {Button} from "@/components/ui/button";
 import { useTRPC } from "@/trpc/client";
 import { useMutation } from "@tanstack/react-query";
-const Page = async () =>{
+import {Input} from "@/components/ui/input";
+import {useState} from "react";
+const Page =  () =>{
+  const [value,setValue] = useState("");
     const trpc = useTRPC();
     const Invoke = useMutation(trpc.invoke.mutationOptions({}));
 
@@ -10,7 +13,8 @@ const Page = async () =>{
     
   return(
           <div className="p-4 max-w-7xl mx-auto">
-           <Button>
+            <input   value = {value} onChange={(e)=> setValue(e.target.value)}/>
+           <Button disabled ={Invoke.isPending} onClick={()=> Invoke.mutate({value: value})}>
             Invoke
            </Button>
           </div>
