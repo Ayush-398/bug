@@ -1,13 +1,16 @@
+"use client";
+
 import Image from "next/image";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/browser";
+import { useTRPC } from "@/trpc/client";
+const Page =  () =>{
 
-const Page = async () =>{
-  const posts = await prisma.post.findMany();
-
+ const trpc = useTRPC();
+ trpc.createAI.queryOptions({text:"Hello"});
   return(
     <div>
-      {JSON.stringify(posts,null,2)}
+      Hello world
     </div>
   );
 }
