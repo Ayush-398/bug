@@ -1,21 +1,19 @@
-
-import Image from "next/image";
-import { prisma } from "@/lib/db";
-import { Prisma } from "@/generated/prisma/browser";
+"use client";
+import {Button} from "@/components/ui/button";
 import { useTRPC } from "@/trpc/client";
-import { json } from "zod";
-import {trpc, getQueryClient} from "@/trpc/server"
-import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 const Page = async () =>{
+    const trpc = useTRPC();
+    const Invoke = useMutation(trpc.invoke.mutationOptions({}));
 
-const queryClient = getQueryClient();
-void queryClient.prefetchQuery(trpc.createAI.queryOptions({text:"Hello world"}));
+
+    
   return(
-    <HydrationBoundary state = {dehydrate(queryClient())}>
-    <div>
-     
-    </div>
-    </HydrationBoundary>
+          <div className="p-4 max-w-7xl mx-auto">
+           <Button>
+            Invoke
+           </Button>
+          </div>
   );
 }
 
