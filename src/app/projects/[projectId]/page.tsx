@@ -1,0 +1,9 @@
+export Page = async ({params}: Props) =>{
+    const {projectId} = await params;
+
+    return (
+        <div>
+            project
+        </div>
+    )
+}
