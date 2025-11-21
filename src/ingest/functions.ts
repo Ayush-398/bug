@@ -1,60 +1,116 @@
 import { inngest } from "./client";
-import { gemini, createAgent, createTool } from "@inngest/agent-kit";
-import  getSandbox  from "./utils";
-import { z } from "zod";
+import { createAgent, createNetwork, createState, gemini, Message } from "@inngest/agent-kit";
+import { Sandbox } from "@e2b/code-interpreter";
+import getSandbox, { lastMessageAssistant } from "./utils";
+import { createOrUpdateFiles, readFilesTool, terminalTool } from "./tools";
+import { PROMPT } from "./prompt";
+import { prisma } from "@/lib/db";  
 
-export const helloWorld = inngest.createFunction(
-  { id: "hello-world" },
-  { event: "test/helloworld" },
+export const codeAgent = inngest.createFunction(
+  { id: "code-agent" },
+  { event: "code-agent/run" },
   async ({ event, step }) => {
-    const sandboxId = "your-sandbox-id"; 
-    
-    const summarizer = createAgent({
-      name: "Text Summarizer",
-      system: "You are an expert at summarizing text concisely.",
-      model: gemini({ model: "gemini-1.5-flash" }),
-      tools: [
-        createTool({
-          name: "terminal",
-          description: "use the terminal to run commands",
-          parameters: z.object({
-            command: z.string(),
-          }),
-          handler: async ({ command }, { step }) => {
-            return await step?.run("terminal", async () => {
-              const buffers = { stdout: "", stderr: "" };
-              try {
-                const Sandbox = await getSandbox(sandboxId);
-                const result = await Sandbox.commands.run(command, {
-                  onStdout: (data: string) => {
-                    buffers.stdout += data;
-                  },
-                  onStderr: (data: string) => {
-                    buffers.stderr += data;
-                  }
-                });
-                return result.stdout || buffers.stdout;
-              } catch (e) {
-                console.error(
-                  `Command failed: ${e}\nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`
-                );
-                return `Command failed: ${e}\nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`;
-              }
-            });
-          }
-        })
-      ]
+    // Create a new agent with a system prompt (you can add optional tools, too)
+    const sandboxId = await step.run("get-sandbox-id", async() => {
+      const sbx = await Sandbox.create("unlovable-next-test2");
+      await sbx.setTimeout(60000*10);
+      return sbx.sandboxId;
+
     });
-     
-    const { output } = await summarizer.run(
-      `Summarize the following text: ${event.data.value}`
-    );
-    
-    console.log("Summary:", output);
-   
-    return { 
-      message: `Hello ${event.data.value}!`,
-      summary: output 
-    };
+    const previousMessages = await step.run("get-previous-messages",async()=>{
+        const formattedMessage :Message[]= [];
+        const messages = await prisma.message.findMany({
+            where:{
+                projectId:event.data.projectId
+            },
+            orderBy:{
+                createdAt:"desc"
+            },
+            take:5,
+
+        })
+        for (const message of messages){
+            formattedMessage.push({
+                type:"text",
+                role:message.role ==="ASSISTANT"? "assistant":"user",
+                content:message.content
+            })
+        }
+        return formattedMessage.reverse();
+    })
+    const state = createState({
+            summary:"",
+            files:{}
+    },{
+        messages:previousMessages
+    })
+    const coder = createAgent({
+      name: "code-agent",
+      description:"Expert, senior coding agent",
+      system:PROMPT,
+      model: gemini({ model: "gemini-2.5-pro"}),
+      tools:[terminalTool(sandboxId),
+        createOrUpdateFiles(sandboxId),
+        readFilesTool(sandboxId),
+      ],
+      lifecycle:{
+        onResponse:async ({result,network})=>{
+            const lastMessage = lastMessageAssistant(result);
+            if(lastMessage && network){
+                if(lastMessage.includes("<task_summary>")){
+                    network.state.data.summary = lastMessage;
+
+                }
+            }
+            return result;
+        }
+      }
+    });
+
+    const network = createNetwork({
+        name:"Coding agent network",
+        agents:[coder],
+        maxIter:15,
+        defaultState:state,
+        router:async ({network})=>{
+            const summary = network.state.data.summary;
+            if(summary){
+             return;   
+            }
+            return coder;
+        }
+    })
+    const result = await network.run(event.data.value,{state:state});
+    // await step.sleep("wait-a-moment", "10s");
+    const sandBoxUrl = await step.run("get-sandbox-url",async()=>{
+        const sandbox = await getSandbox(sandboxId);
+        const host =  sandbox.getHost(3000);
+        return `https://${host}`;
+    })
+
+    console.log(sandBoxUrl);
+    await step.run("save-result",async()=>{
+        return await prisma.message.create({
+            data:{
+                content:result.state.data.summary,
+                projectId:event.data.projectId,
+                role:"ASSISTANT",
+                type:"RESULT",
+                fragment:{
+                    create:{
+                        sandboxUrl:sandBoxUrl,
+                        title:"Fragment",
+                        files:result.state.data.files,
+                    }
+                }
+            }
+        })
+    })
+
+    return { url:sandBoxUrl,
+        title:"Fragment",
+        files:result.state.data.files,
+        summary:result.state.data.summary
+     };
   }
 );
