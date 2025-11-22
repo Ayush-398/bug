@@ -4,7 +4,8 @@ import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import { toast } from "react-hot-toast";  // Add this import - or use your toast library
+import { toast } from "react-hot-toast";  
+import { error } from "node:console";
 
 const Page = () => {
   const [value, setValue] = useState("");
@@ -13,19 +14,14 @@ const Page = () => {
   
   const createMessage = useMutation(
     trpc.messages.create.mutationOptions({
-      onSuccess: () => {
-        toast.success("message created");
-        setValue("");  
-      },
-      onError: (error) => {
-        toast.error("Failed to create message");
-        console.error(error);
-      },
+       onError:(error) =>{
+        toast.error(error.message);
+       },
     })
   );
 
   return (
-    <div className="p-4 max-w-7xl mx-auto">
+    <div className="h-screen w-screen flex items-center justify-center">
       <Input 
         value={value} 
         onChange={(e) => setValue(e.target.value)}
@@ -33,7 +29,7 @@ const Page = () => {
       />
       <Button 
         disabled={createMessage.isPending}
-        onClick={() => createMessage.mutate({ value: value })}  // Fixed: was "Invoke"
+        onClick={() => createMessage.mutate({ value: value })}  
       >
         {createMessage.isPending ? "Sending..." : "Invoke"}
       </Button>
