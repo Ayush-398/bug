@@ -68,7 +68,7 @@ export function createOrUpdateFiles(sandboxId: string) {
 export function readFilesTool(sandboxId: string) {
   return createTool({
     name: "read_files",
-    description: "read files from the sandbox",
+    description: "read files from the sandbox", 
     parameters: z.object({
       files: z.array(z.string()),
     }),
