@@ -10,7 +10,7 @@ export const codeAgent = inngest.createFunction(
   { id: "code-agent" },
   { event: "code-agent/run" },
   async ({ event, step }) => {
-    // Create a new agent with a system prompt (you can add optional tools, too)
+
     const sandboxId = await step.run("get-sandbox-id", async() => {
       const sbx = await Sandbox.create("unlovable-next-test2");
       await sbx.setTimeout(60000*10);
@@ -81,7 +81,7 @@ export const codeAgent = inngest.createFunction(
         }
     })
     const result = await network.run(event.data.value,{state:state});
-    // await step.sleep("wait-a-moment", "10s");
+    
     const sandBoxUrl = await step.run("get-sandbox-url",async()=>{
         const sandbox = await getSandbox(sandboxId);
         const host =  sandbox.getHost(3000);
